@@ -788,6 +788,48 @@ class BitbucketServer {
           },
         },
         {
+          name: "requestChangesPullRequest",
+          description: "Mark a pull request as 'Changes requested'",
+          inputSchema: {
+            type: "object",
+            properties: {
+              workspace: {
+                type: "string",
+                description: "Bitbucket workspace name",
+              },
+              repo_slug: { type: "string", description: "Repository slug" },
+              pull_request_id: {
+                type: "string",
+                description: "Pull request ID",
+              },
+              ...PAGINATION_BASE_SCHEMA,
+              all: PAGINATION_ALL_SCHEMA,
+            },
+            required: ["workspace", "repo_slug", "pull_request_id"],
+          },
+        },
+        {
+          name: "removeChangesRequestedPullRequest",
+          description: "Remove the 'Changes requested' status from a pull request",
+          inputSchema: {
+            type: "object",
+            properties: {
+              workspace: {
+                type: "string",
+                description: "Bitbucket workspace name",
+              },
+              repo_slug: { type: "string", description: "Repository slug" },
+              pull_request_id: {
+                type: "string",
+                description: "Pull request ID",
+              },
+              ...PAGINATION_BASE_SCHEMA,
+              all: PAGINATION_ALL_SCHEMA,
+            },
+            required: ["workspace", "repo_slug", "pull_request_id"],
+          },
+        },
+        {
           name: "declinePullRequest",
           description: "Decline a pull request",
           inputSchema: {
@@ -1959,6 +2001,18 @@ class BitbucketServer {
               args.repo_slug as string,
               args.pull_request_id as string
             );
+          case "requestChangesPullRequest":
+            return await this.requestChangesPullRequest(
+              args.workspace as string,
+              args.repo_slug as string,
+              args.pull_request_id as string
+            );
+          case "removeChangesRequestedPullRequest":
+            return await this.removeChangesRequestedPullRequest(
+              args.workspace as string,
+              args.repo_slug as string,
+              args.pull_request_id as string
+            );
           case "declinePullRequest":
             return await this.declinePullRequest(
               args.workspace as string,
@@ -2781,6 +2835,89 @@ class BitbucketServer {
       throw new McpError(
         ErrorCode.InternalError,
         `Failed to unapprove pull request: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  async requestChangesPullRequest(
+    workspace: string,
+    repo_slug: string,
+    pull_request_id: string
+  ) {
+    try {
+      logger.info("Requesting changes on Bitbucket pull request", {
+        workspace,
+        repo_slug,
+        pull_request_id,
+      });
+
+      // Bitbucket Cloud returns 400 when this POST carries no body or no
+      // Content-Type. Pass `{}` so axios infers `application/json`.
+      const response = await this.api.post(
+        `/repositories/${workspace}/${repo_slug}/pullrequests/${pull_request_id}/request-changes`,
+        {}
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(response.data, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      logger.error("Error requesting changes on pull request", {
+        error,
+        workspace,
+        repo_slug,
+        pull_request_id,
+      });
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to request changes on pull request: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  async removeChangesRequestedPullRequest(
+    workspace: string,
+    repo_slug: string,
+    pull_request_id: string
+  ) {
+    try {
+      logger.info("Removing changes-requested status from Bitbucket pull request", {
+        workspace,
+        repo_slug,
+        pull_request_id,
+      });
+
+      await this.api.delete(
+        `/repositories/${workspace}/${repo_slug}/pullrequests/${pull_request_id}/request-changes`
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Pull request 'Changes requested' status removed successfully.",
+          },
+        ],
+      };
+    } catch (error) {
+      logger.error("Error removing changes-requested status from pull request", {
+        error,
+        workspace,
+        repo_slug,
+        pull_request_id,
+      });
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to remove changes-requested status from pull request: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
