@@ -4305,7 +4305,7 @@ class BitbucketServer {
       // Bitbucket Cloud returns 400 when this POST carries no body or no
       // Content-Type. Pass `{}` so axios infers `application/json`.
       const response = await this.api.post(
-        `/repositories/${workspace}/${repo_slug}/pipelines/${pipeline_uuid}/stop`,
+        `/repositories/${workspace}/${repo_slug}/pipelines/${pipeline_uuid}/stopPipeline`,
         {}
       );
 
