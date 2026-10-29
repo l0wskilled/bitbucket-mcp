@@ -40,7 +40,7 @@ npm run release         # Alias for publish:patch
 ## Architecture
 
 ### Single-File Design
-The entire server implementation lives in `src/index.ts` (~4,500 lines). This includes:
+The server implementation lives in `src/index.ts` (~4,500 lines). This includes:
 - Type definitions for Bitbucket API entities
 - BitbucketClient class with all API methods
 - MCP server setup and tool registration
@@ -135,4 +135,4 @@ MCP clients (like Cursor) communicate via stdio transport using the MCP protocol
 - All API responses are returned as JSON-stringified text content in MCP format
 - Error handling uses McpError with appropriate ErrorCodes
 - Logger writes structured JSON logs (not console output, which would break stdio transport)
-- No test files currently exist in the repository
+- Jest tests live in `__tests__/` and cover the helper modules (`src/pagination.ts`, `src/reviewers.ts`)

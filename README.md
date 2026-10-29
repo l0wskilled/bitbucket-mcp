@@ -283,9 +283,20 @@ Updates a pull request.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
-- Pagination controls described in [Pagination](#pagination)
-- Pagination controls described in [Pagination](#pagination)
-- Various optional update parameters (title, description, etc.)
+- `title` (optional): New title
+- `description` (optional): New description
+- `reviewers` (optional): Replaces the reviewer list; user UUIDs in braces or Atlassian account IDs
+
+#### `addPullRequestReviewers`
+
+Adds reviewers to a pull request and keeps the ones it already has.
+
+**Parameters:**
+
+- `workspace`: Bitbucket workspace name
+- `repo_slug`: Repository slug
+- `pull_request_id`: Pull request ID
+- `reviewers`: User UUIDs in braces or Atlassian account IDs
 
 #### `getPullRequestActivity`
 

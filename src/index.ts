@@ -13,6 +13,7 @@ import winston from "winston";
 import os from "os";
 import path from "path";
 import fs from "fs";
+import { mergeReviewers, toReviewerRefs } from "./reviewers.js";
 import {
   BitbucketPaginator,
   BITBUCKET_ALL_ITEMS_CAP,
@@ -720,8 +721,40 @@ class BitbucketServer {
                 type: "string",
                 description: "New pull request description",
               },
+              reviewers: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                  "Replaces the reviewer list. Each entry is a user UUID in braces (e.g. '{04776764-62c7-453b-b97e-302f60395ceb}') or an Atlassian account ID",
+              },
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
+          },
+        },
+        {
+          name: "addPullRequestReviewers",
+          description:
+            "Add reviewers to a pull request, keeping the ones it already has",
+          inputSchema: {
+            type: "object",
+            properties: {
+              workspace: {
+                type: "string",
+                description: "Bitbucket workspace name",
+              },
+              repo_slug: { type: "string", description: "Repository slug" },
+              pull_request_id: {
+                type: "string",
+                description: "Pull request ID",
+              },
+              reviewers: {
+                type: "array",
+                items: { type: "string" },
+                description:
+                  "Reviewers to add. Each entry is a user UUID in braces or an Atlassian account ID",
+              },
+            },
+            required: ["workspace", "repo_slug", "pull_request_id", "reviewers"],
           },
         },
         {
@@ -1978,7 +2011,15 @@ class BitbucketServer {
               args.repo_slug as string,
               args.pull_request_id as string,
               args.title as string,
-              args.description as string
+              args.description as string,
+              args.reviewers as string[] | undefined
+            );
+          case "addPullRequestReviewers":
+            return await this.addPullRequestReviewers(
+              args.workspace as string,
+              args.repo_slug as string,
+              args.pull_request_id as string,
+              args.reviewers as string[]
             );
           case "getPullRequestActivity":
             return await this.getPullRequestActivity(
@@ -2663,7 +2704,8 @@ class BitbucketServer {
     repo_slug: string,
     pull_request_id: string,
     title?: string,
-    description?: string
+    description?: string,
+    reviewers?: string[]
   ) {
     try {
       logger.info("Updating Bitbucket pull request", {
@@ -2676,6 +2718,7 @@ class BitbucketServer {
       const updateData: Record<string, any> = {};
       if (title !== undefined) updateData.title = title;
       if (description !== undefined) updateData.description = description;
+      if (reviewers !== undefined) updateData.reviewers = toReviewerRefs(reviewers);
 
       const response = await this.api.put(
         `/repositories/${workspace}/${repo_slug}/pullrequests/${pull_request_id}`,
@@ -2700,6 +2743,52 @@ class BitbucketServer {
       throw new McpError(
         ErrorCode.InternalError,
         `Failed to update pull request: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  async addPullRequestReviewers(
+    workspace: string,
+    repo_slug: string,
+    pull_request_id: string,
+    reviewers: string[]
+  ) {
+    try {
+      logger.info("Adding reviewers to Bitbucket pull request", {
+        workspace,
+        repo_slug,
+        pull_request_id,
+      });
+
+      const path = `/repositories/${workspace}/${repo_slug}/pullrequests/${pull_request_id}`;
+      const current = await this.api.get(path);
+      const response = await this.api.put(path, {
+        reviewers: mergeReviewers(
+          current.data.reviewers ?? [],
+          toReviewerRefs(reviewers)
+        ),
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(response.data, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      logger.error("Error adding pull request reviewers", {
+        error,
+        workspace,
+        repo_slug,
+        pull_request_id,
+      });
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to add pull request reviewers: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
