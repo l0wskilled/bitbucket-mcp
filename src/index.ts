@@ -13,6 +13,7 @@ import winston from "winston";
 import os from "os";
 import path from "path";
 import fs from "fs";
+import { buildPullRequestCreate } from "./pullRequestCreate.js";
 import { buildPullRequestUpdate } from "./pullRequestUpdate.js";
 import { mergeReviewers, toReviewerRefs } from "./reviewers.js";
 import { summarizeWriteResponse } from "./writeSummary.js";
@@ -133,6 +134,12 @@ const ITEM_FIELDS_SCHEMA = {
   type: "string",
   description:
     "Bitbucket partial-response selector, passed through as the fields query param, e.g. 'id,title,state' or '-rendered,-summary'.",
+};
+
+const CLOSE_SOURCE_BRANCH_SCHEMA = {
+  type: "boolean",
+  description:
+    "Delete the source branch after the merge. Defaults to true; set false to keep it, e.g. for the base of a stacked pull request.",
 };
 
 const WRITE_FULL_SCHEMA = {
@@ -699,8 +706,9 @@ class BitbucketServer {
                 type: "array",
                 items: { type: "string" },
                 description:
-                  "List of reviewer UUIDs (e.g., '{04776764-62c7-453b-b97e-302f60395ceb}')",
+                  "Reviewers as user UUIDs in braces (e.g. '{04776764-62c7-453b-b97e-302f60395ceb}') or Atlassian account IDs (e.g. '712020:54c05adb-...')",
               },
+              close_source_branch: CLOSE_SOURCE_BRANCH_SCHEMA,
               draft: {
                 type: "boolean",
                 description: "Whether to create the pull request as a draft",
@@ -1364,8 +1372,9 @@ class BitbucketServer {
                 type: "array",
                 items: { type: "string" },
                 description:
-                  "List of reviewer UUIDs (e.g., '{04776764-62c7-453b-b97e-302f60395ceb}')",
+                  "Reviewers as user UUIDs in braces (e.g. '{04776764-62c7-453b-b97e-302f60395ceb}') or Atlassian account IDs (e.g. '712020:54c05adb-...')",
               },
+              close_source_branch: CLOSE_SOURCE_BRANCH_SCHEMA,
               full: WRITE_FULL_SCHEMA,
             },
             required: [
@@ -2056,7 +2065,8 @@ class BitbucketServer {
               args.targetBranch as string,
               args.reviewers as string[] | undefined,
               args.draft as boolean,
-              args.full as boolean | undefined
+              args.full as boolean | undefined,
+              args.close_source_branch as boolean | undefined
             );
           case "getPullRequest":
             return await this.getPullRequest(
@@ -2236,8 +2246,9 @@ class BitbucketServer {
               args.description as string,
               args.sourceBranch as string,
               args.targetBranch as string,
-              args.reviewers as string[],
-              args.full as boolean | undefined
+              args.reviewers as string[] | undefined,
+              args.full as boolean | undefined,
+              args.close_source_branch as boolean | undefined
             );
           case "publishDraftPullRequest":
             return await this.publishDraftPullRequest(
@@ -2647,7 +2658,8 @@ class BitbucketServer {
     targetBranch: string,
     reviewers?: string[],
     draft?: boolean,
-    full?: boolean
+    full?: boolean,
+    close_source_branch?: boolean
   ) {
     try {
       logger.info("Creating Bitbucket pull request", {
@@ -2658,48 +2670,15 @@ class BitbucketServer {
         targetBranch,
       });
 
-      // Prepare reviewers format if provided
-      // Bitbucket API expects reviewers as array of objects: [{uuid: "{...}"}]
-      // Input is string array of UUIDs: ["{04776764-62c7-453b-b97e-302f60395ceb}", ...]
-      // Convert to API format: [{uuid: "{...}"}, ...]
-      let reviewersArray: Array<{ uuid: string }> | undefined;
-
-      if (reviewers && reviewers.length > 0) {
-        reviewersArray = reviewers
-          .filter((uuid) => typeof uuid === "string" && uuid.trim().length > 0)
-          .map((uuid) => ({ uuid: uuid.trim() }));
-
-        if (reviewersArray.length === 0) {
-          reviewersArray = undefined;
-        }
-      }
-
-      // Build request payload - only include reviewers if provided
-      const requestPayload: Record<string, any> = {
+      const requestPayload = buildPullRequestCreate({
         title,
         description,
-        source: {
-          branch: {
-            name: sourceBranch,
-          },
-        },
-        destination: {
-          branch: {
-            name: targetBranch,
-          },
-        },
-        close_source_branch: true,
-      };
-
-      // Only include reviewers field if there are reviewers to add
-      if (reviewersArray && reviewersArray.length > 0) {
-        requestPayload.reviewers = reviewersArray;
-      }
-
-      // Only include draft field if explicitly set to true
-      if (draft === true) {
-        requestPayload.draft = true;
-      }
+        sourceBranch,
+        targetBranch,
+        reviewers,
+        draft,
+        closeSourceBranch: close_source_branch,
+      });
 
       // Create the pull request
       const response = await this.api.post(
@@ -3890,7 +3869,8 @@ class BitbucketServer {
     sourceBranch: string,
     targetBranch: string,
     reviewers?: string[],
-    full?: boolean
+    full?: boolean,
+    close_source_branch?: boolean
   ) {
     try {
       logger.info("Creating draft Bitbucket pull request", {
@@ -3911,7 +3891,8 @@ class BitbucketServer {
         targetBranch,
         reviewers,
         true, // Set draft to true
-        full
+        full,
+        close_source_branch
       );
     } catch (error) {
       logger.error("Error creating draft pull request", {

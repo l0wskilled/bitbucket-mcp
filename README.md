@@ -282,8 +282,9 @@ Creates a new pull request.
 - `description`: Pull request description
 - `sourceBranch`: Source branch name
 - `targetBranch`: Target branch name
-- `reviewers` (optional): List of reviewer usernames
+- `reviewers` (optional): User UUIDs in braces or Atlassian account IDs
 - `draft` (optional): Whether to create the pull request as a draft
+- `close_source_branch` (optional): Delete the source branch after the merge, defaults to `true`
 - `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `getPullRequest`
@@ -418,7 +419,8 @@ Creates a new draft pull request.
 - `description`: Pull request description
 - `sourceBranch`: Source branch name
 - `targetBranch`: Target branch name
-- `reviewers` (optional): List of reviewer usernames
+- `reviewers` (optional): User UUIDs in braces or Atlassian account IDs
+- `close_source_branch` (optional): Delete the source branch after the merge, defaults to `true`
 - `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 **Note:** This is equivalent to calling `createPullRequest` with `draft: true`.
