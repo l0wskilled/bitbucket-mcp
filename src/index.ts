@@ -21,6 +21,7 @@ import {
 import { shapeDiff } from "./diffFilter.js";
 import { buildPullRequestCreate } from "./pullRequestCreate.js";
 import { buildPullRequestUpdate } from "./pullRequestUpdate.js";
+import { buildPullRequestMerge, MERGE_STRATEGIES } from "./pullRequestMerge.js";
 import { mergeReviewers, toReviewerRefs } from "./reviewers.js";
 import {
   summarizeComment,
@@ -1000,8 +1001,8 @@ class BitbucketServer {
               message: { type: "string", description: "Merge commit message" },
               strategy: {
                 type: "string",
-                enum: ["merge-commit", "squash", "fast-forward"],
-                description: "Merge strategy",
+                enum: [...MERGE_STRATEGIES],
+                description: "Merge strategy; the repository's default when omitted",
               },
               full: WRITE_FULL_SCHEMA,
             },
@@ -2242,7 +2243,7 @@ class BitbucketServer {
               args.repo_slug as string,
               args.pull_request_id as string,
               args.message as string,
-              args.strategy as "merge-commit" | "squash" | "fast-forward",
+              args.strategy as string | undefined,
               args.full as boolean | undefined
             );
           case "getPullRequestComments":
@@ -3271,7 +3272,7 @@ class BitbucketServer {
     repo_slug: string,
     pull_request_id: string,
     message?: string,
-    strategy?: "merge-commit" | "squash" | "fast-forward",
+    strategy?: string,
     full?: boolean
   ) {
     try {
@@ -3282,10 +3283,7 @@ class BitbucketServer {
         strategy,
       });
 
-      // Build request data
-      const data: Record<string, any> = {};
-      if (message) data.message = message;
-      if (strategy) data.merge_strategy = strategy;
+      const data = buildPullRequestMerge({ message, strategy });
 
       const response = await this.api.post(
         `/repositories/${workspace}/${repo_slug}/pullrequests/${pull_request_id}/merge`,

@@ -394,7 +394,7 @@ Merges a pull request.
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
 - `message` (optional): Merge commit message
-- `strategy` (optional): Merge strategy (`merge-commit`, `squash`, `fast-forward`)
+- `strategy` (optional): Merge strategy (`merge_commit`, `squash`, `fast_forward`, `squash_fast_forward`, `rebase_fast_forward`, `rebase_merge`); the repository default when omitted
 - `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `requestChanges`
