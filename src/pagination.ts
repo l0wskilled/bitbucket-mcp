@@ -1,5 +1,6 @@
 import type { AxiosInstance } from "axios";
 import type winston from "winston";
+import { listFieldsParam } from "./partialResponse.js";
 
 export const BITBUCKET_DEFAULT_PAGELEN = 10;
 export const BITBUCKET_MAX_PAGELEN = 100;
@@ -10,6 +11,8 @@ export interface PaginationRequestOptions {
   page?: number;
   all?: boolean;
   params?: Record<string, any>;
+  /** Bitbucket partial-response selector, e.g. `values.id,values.title`. */
+  fields?: string;
   defaultPagelen?: number;
   maxItems?: number;
   description?: string;
@@ -45,6 +48,7 @@ export class BitbucketPaginator {
       page,
       all = false,
       params = {},
+      fields,
       defaultPagelen = BITBUCKET_DEFAULT_PAGELEN,
       maxItems = BITBUCKET_ALL_ITEMS_CAP,
       description,
@@ -57,6 +61,10 @@ export class BitbucketPaginator {
       ...params,
       pagelen: resolvedPagelen,
     };
+    const fieldsParam = listFieldsParam(fields);
+    if (fieldsParam) {
+      requestParams.fields = fieldsParam;
+    }
     if (page !== undefined) {
       requestParams.page = page;
     }

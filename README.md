@@ -211,6 +211,20 @@ Unless noted otherwise, listing tools accept the following optional parameters:
 
 Use these knobs to page through large collections without hitting CLI truncation.
 
+### Partial responses
+
+The read tools marked with `fields` pass Bitbucket's [partial-response](https://developer.atlassian.com/cloud/bitbucket/rest/intro/) selector through as the `fields` query param. Without it they return Bitbucket's full objects.
+
+- On list tools the paths start at the page: `values.id,values.title,values.draft` returns only those fields; the `next` link is kept so `all: true` still pages.
+- A `-` prefix drops fields from the default set and a `+` prefix adds ones Bitbucket leaves out: `-values.rendered,-values.summary,-values.links`.
+- On single-object tools the paths start at the object: `id,title,state,participants.state`.
+
+Examples: `getPullRequests` with `fields: "values.id,values.title,values.author.display_name,values.source.branch.name"`, or `listPipelineRuns` with `fields: "values.uuid,values.build_number,values.state,values.target.source"`.
+
+### Write responses
+
+The pull request write tools marked with `full` return a compact summary by default: `id`, `title`, `state`, `draft`, `source_branch`, `destination_branch`, `source_commit`, the reviewers' display names and the html `url`. `approvePullRequest` and `requestChangesPullRequest` return the participant as `user`, `role`, `approved` and `state`. Set `full: true` to get Bitbucket's whole response.
+
 ### Repository Operations
 
 #### `listRepositories`
@@ -244,6 +258,7 @@ Gets pull requests for a repository.
 - `repo_slug`: Repository slug
 - `state` (optional): Pull request state (`OPEN`, `MERGED`, `DECLINED`, `SUPERSEDED`)
 - Pagination controls described in [Pagination](#pagination)
+- `fields` (optional): Partial-response selector, see [Partial responses](#partial-responses)
 
 #### `createPullRequest`
 
@@ -259,6 +274,7 @@ Creates a new pull request.
 - `targetBranch`: Target branch name
 - `reviewers` (optional): List of reviewer usernames
 - `draft` (optional): Whether to create the pull request as a draft
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `getPullRequest`
 
@@ -273,6 +289,7 @@ Gets details for a specific pull request.
 - Pagination controls described in [Pagination](#pagination)
 - Pagination controls described in [Pagination](#pagination)
 - Pagination controls described in [Pagination](#pagination)
+- `fields` (optional): Partial-response selector, see [Partial responses](#partial-responses)
 
 #### `updatePullRequest`
 
@@ -287,6 +304,7 @@ Updates a pull request.
 - `description` (optional): New description
 - `reviewers` (optional): Replaces the reviewer list; user UUIDs in braces or Atlassian account IDs
 - `destination_branch` (optional): Retargets the pull request onto this branch
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `addPullRequestReviewers`
 
@@ -298,6 +316,7 @@ Adds reviewers to a pull request and keeps the ones it already has.
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
 - `reviewers`: User UUIDs in braces or Atlassian account IDs
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `getPullRequestActivity`
 
@@ -308,6 +327,7 @@ Gets the activity log for a pull request.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
+- `fields` (optional): Partial-response selector, see [Partial responses](#partial-responses)
 
 #### `approvePullRequest`
 
@@ -318,6 +338,7 @@ Approves a pull request.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `unapprovePullRequest`
 
@@ -339,6 +360,7 @@ Declines a pull request.
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
 - `message` (optional): Reason for declining
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `mergePullRequest`
 
@@ -351,6 +373,7 @@ Merges a pull request.
 - `pull_request_id`: Pull request ID
 - `message` (optional): Merge commit message
 - `strategy` (optional): Merge strategy (`merge-commit`, `squash`, `fast-forward`)
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `requestChanges`
 
@@ -361,6 +384,7 @@ Requests changes on a pull request.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `removeChangeRequest`
 
@@ -385,6 +409,7 @@ Creates a new draft pull request.
 - `sourceBranch`: Source branch name
 - `targetBranch`: Target branch name
 - `reviewers` (optional): List of reviewer usernames
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 **Note:** This is equivalent to calling `createPullRequest` with `draft: true`.
 
@@ -397,6 +422,7 @@ Publishes a draft pull request to make it ready for review.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `convertTodraft`
 
@@ -407,6 +433,7 @@ Converts a regular pull request to draft status.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 ### Pull Request Comment Operations
 
@@ -419,6 +446,7 @@ Lists comments on a pull request.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
+- `fields` (optional): Partial-response selector, see [Partial responses](#partial-responses)
 
 #### `addPullRequestComment`
 
@@ -563,6 +591,7 @@ Lists tasks on a pull request.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
+- `fields` (optional): Partial-response selector, see [Partial responses](#partial-responses)
 
 #### `createPullRequestTask`
 
@@ -623,6 +652,7 @@ Lists commits on a pull request.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
+- `fields` (optional): Partial-response selector, see [Partial responses](#partial-responses)
 
 #### `getPullRequestStatuses`
 
@@ -633,6 +663,7 @@ Lists commit statuses for a pull request.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
+- `fields` (optional): Partial-response selector, see [Partial responses](#partial-responses)
 
 ### Pipeline Operations
 
@@ -649,6 +680,7 @@ Lists pipeline runs for a repository.
 - `target_branch` (optional): Filter pipelines by target branch
 - `trigger_type` (optional): Filter pipelines by trigger type (`push`, `manual`, `schedule`, `parent_step`, `pullrequest`). `pullrequest` selects the pipelines from the `pull-requests` section of `bitbucket-pipelines.yml`; Bitbucket itself reports them as triggered by a push.
 - `sort` (optional): `created_on`, `creator.uuid` or `run_creation_date`, prefix `-` for descending (e.g. `-created_on` for newest first)
+- `fields` (optional): Partial-response selector, see [Partial responses](#partial-responses)
 
 #### `getPipelineRun`
 
@@ -660,6 +692,7 @@ Gets details for a specific pipeline run.
 - `repo_slug`: Repository slug
 - `pipeline_uuid`: Pipeline UUID
 - Pagination controls described in [Pagination](#pagination)
+- `fields` (optional): Partial-response selector, see [Partial responses](#partial-responses)
 
 #### `runPipeline`
 
@@ -691,6 +724,7 @@ Lists steps for a pipeline run.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `pipeline_uuid`: Pipeline UUID
+- `fields` (optional): Partial-response selector, see [Partial responses](#partial-responses)
 
 #### `getPipelineStep`
 
@@ -702,6 +736,7 @@ Gets details for a specific pipeline step.
 - `repo_slug`: Repository slug
 - `pipeline_uuid`: Pipeline UUID
 - `step_uuid`: Step UUID
+- `fields` (optional): Partial-response selector, see [Partial responses](#partial-responses)
 
 #### `getPipelineStepLogs`
 

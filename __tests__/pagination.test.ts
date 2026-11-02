@@ -35,6 +35,19 @@ describe("BitbucketPaginator", () => {
     expect(result.page).toBe(1);
   });
 
+  it("sends the partial-response fields and keeps the next link", async () => {
+    const axios = createMockAxios();
+    const paginator = new BitbucketPaginator(axios, createMockLogger());
+
+    (axios.get as any).mockResolvedValue({ data: { values: [] } });
+
+    await paginator.fetchValues("/test", { pagelen: 5, fields: "values.id" });
+
+    expect(axios.get).toHaveBeenCalledWith("/test", {
+      params: { pagelen: 5, fields: "values.id,next" },
+    });
+  });
+
   it("caps pagelen to Bitbucket maximum", async () => {
     const axios = createMockAxios();
     const logger = createMockLogger();

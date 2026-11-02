@@ -132,7 +132,7 @@ MCP clients (like Cursor) communicate via stdio transport using the MCP protocol
 ## Important Notes
 
 - Single source file makes navigation straightforward but requires discipline with organization
-- All API responses are returned as JSON-stringified text content in MCP format
+- All API responses are returned as JSON-stringified text content in MCP format; pull request writes return a compact summary unless `full: true` (`src/writeSummary.ts`)
 - Error handling uses McpError with appropriate ErrorCodes
 - Logger writes structured JSON logs (not console output, which would break stdio transport)
-- Jest tests live in `__tests__/` and cover the helper modules (`src/pagination.ts`, `src/reviewers.ts`)
+- Jest tests live in `__tests__/` and cover the helper modules (`src/*.ts` besides `index.ts`)

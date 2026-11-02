@@ -15,6 +15,7 @@ import path from "path";
 import fs from "fs";
 import { buildPullRequestUpdate } from "./pullRequestUpdate.js";
 import { mergeReviewers, toReviewerRefs } from "./reviewers.js";
+import { summarizeWriteResponse } from "./writeSummary.js";
 import {
   buildPipelineFilterParams,
   PIPELINE_STATUS_FILTERS,
@@ -119,6 +120,24 @@ const LEGACY_LIMIT_SCHEMA = {
   type: "number",
   description:
     "Deprecated alias for pagelen. Use pagelen/page/all for pagination control.",
+};
+
+const LIST_FIELDS_SCHEMA = {
+  type: "string",
+  description:
+    "Bitbucket partial-response selector, passed through as the fields query param. Paths start at the page, e.g. 'values.id,values.title' to return only those, or '-values.rendered,-values.summary' to drop fields from the default set. The next link is kept for 'all'.",
+};
+
+const ITEM_FIELDS_SCHEMA = {
+  type: "string",
+  description:
+    "Bitbucket partial-response selector, passed through as the fields query param, e.g. 'id,title,state' or '-rendered,-summary'.",
+};
+
+const WRITE_FULL_SCHEMA = {
+  type: "boolean",
+  description:
+    "Return the whole Bitbucket response instead of the compact summary (id, title, state, draft, branches, source commit, reviewer names, link).",
 };
 
 // =========== TYPE DEFINITIONS ===========
@@ -641,6 +660,7 @@ class BitbucketServer {
               ...PAGINATION_BASE_SCHEMA,
               all: PAGINATION_ALL_SCHEMA,
               limit: LEGACY_LIMIT_SCHEMA,
+              fields: LIST_FIELDS_SCHEMA,
             },
             required: ["workspace", "repo_slug"],
           },
@@ -679,6 +699,7 @@ class BitbucketServer {
                 type: "boolean",
                 description: "Whether to create the pull request as a draft",
               },
+              full: WRITE_FULL_SCHEMA,
             },
             required: [
               "workspace",
@@ -707,6 +728,7 @@ class BitbucketServer {
               },
               ...PAGINATION_BASE_SCHEMA,
               all: PAGINATION_ALL_SCHEMA,
+              fields: ITEM_FIELDS_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -742,6 +764,7 @@ class BitbucketServer {
                 description:
                   "Retargets the pull request onto this branch (e.g. to stack it on another pull request's branch)",
               },
+              full: WRITE_FULL_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -768,6 +791,7 @@ class BitbucketServer {
                 description:
                   "Reviewers to add. Each entry is a user UUID in braces or an Atlassian account ID",
               },
+              full: WRITE_FULL_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id", "reviewers"],
           },
@@ -789,6 +813,7 @@ class BitbucketServer {
               },
               ...PAGINATION_BASE_SCHEMA,
               all: PAGINATION_ALL_SCHEMA,
+              fields: LIST_FIELDS_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -810,6 +835,7 @@ class BitbucketServer {
               },
               ...PAGINATION_BASE_SCHEMA,
               all: PAGINATION_ALL_SCHEMA,
+              full: WRITE_FULL_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -852,6 +878,7 @@ class BitbucketServer {
               },
               ...PAGINATION_BASE_SCHEMA,
               all: PAGINATION_ALL_SCHEMA,
+              full: WRITE_FULL_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -893,6 +920,7 @@ class BitbucketServer {
                 description: "Pull request ID",
               },
               message: { type: "string", description: "Reason for declining" },
+              full: WRITE_FULL_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -918,6 +946,7 @@ class BitbucketServer {
                 enum: ["merge-commit", "squash", "fast-forward"],
                 description: "Merge strategy",
               },
+              full: WRITE_FULL_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -939,6 +968,7 @@ class BitbucketServer {
               },
               ...PAGINATION_BASE_SCHEMA,
               all: PAGINATION_ALL_SCHEMA,
+              fields: LIST_FIELDS_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -979,6 +1009,7 @@ class BitbucketServer {
               },
               ...PAGINATION_BASE_SCHEMA,
               all: PAGINATION_ALL_SCHEMA,
+              fields: LIST_FIELDS_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -1329,6 +1360,7 @@ class BitbucketServer {
                 description:
                   "List of reviewer UUIDs (e.g., '{04776764-62c7-453b-b97e-302f60395ceb}')",
               },
+              full: WRITE_FULL_SCHEMA,
             },
             required: [
               "workspace",
@@ -1356,6 +1388,7 @@ class BitbucketServer {
                 type: "string",
                 description: "Pull request ID",
               },
+              full: WRITE_FULL_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -1375,6 +1408,7 @@ class BitbucketServer {
                 type: "string",
                 description: "Pull request ID",
               },
+              full: WRITE_FULL_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -1438,6 +1472,7 @@ class BitbucketServer {
                 description:
                   "Field to sort by. Prefix with '-' for descending order. Supported fields: created_on, creator.uuid, run_creation_date. Example: '-created_on' for newest first.",
               },
+              fields: LIST_FIELDS_SCHEMA,
             },
             required: ["workspace", "repo_slug"],
           },
@@ -1459,6 +1494,7 @@ class BitbucketServer {
               },
               ...PAGINATION_BASE_SCHEMA,
               all: PAGINATION_ALL_SCHEMA,
+              fields: ITEM_FIELDS_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pipeline_uuid"],
           },
@@ -1558,6 +1594,7 @@ class BitbucketServer {
                 type: "string",
                 description: "Pipeline UUID",
               },
+              fields: LIST_FIELDS_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pipeline_uuid"],
           },
@@ -1581,6 +1618,7 @@ class BitbucketServer {
                 type: "string",
                 description: "Step UUID",
               },
+              fields: ITEM_FIELDS_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pipeline_uuid", "step_uuid"],
           },
@@ -1818,6 +1856,7 @@ class BitbucketServer {
                 type: "string",
                 description: "Pull request ID",
               },
+              fields: LIST_FIELDS_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -1927,6 +1966,7 @@ class BitbucketServer {
                 type: "string",
                 description: "Pull request ID",
               },
+              fields: LIST_FIELDS_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -1996,7 +2036,8 @@ class BitbucketServer {
               args.pagelen as number,
               args.page as number,
               args.all as boolean,
-              args.limit as number
+              args.limit as number,
+              args.fields as string | undefined
             );
           case "createPullRequest":
             return await this.createPullRequest(
@@ -2007,13 +2048,15 @@ class BitbucketServer {
               args.sourceBranch as string,
               args.targetBranch as string,
               args.reviewers as string[] | undefined,
-              args.draft as boolean
+              args.draft as boolean,
+              args.full as boolean | undefined
             );
           case "getPullRequest":
             return await this.getPullRequest(
               args.workspace as string,
               args.repo_slug as string,
-              args.pull_request_id as string
+              args.pull_request_id as string,
+              args.fields as string | undefined
             );
           case "updatePullRequest":
             return await this.updatePullRequest(
@@ -2023,14 +2066,16 @@ class BitbucketServer {
               args.title as string,
               args.description as string,
               args.reviewers as string[] | undefined,
-              args.destination_branch as string | undefined
+              args.destination_branch as string | undefined,
+              args.full as boolean | undefined
             );
           case "addPullRequestReviewers":
             return await this.addPullRequestReviewers(
               args.workspace as string,
               args.repo_slug as string,
               args.pull_request_id as string,
-              args.reviewers as string[]
+              args.reviewers as string[],
+              args.full as boolean | undefined
             );
           case "getPullRequestActivity":
             return await this.getPullRequestActivity(
@@ -2039,13 +2084,15 @@ class BitbucketServer {
               args.pull_request_id as string,
               args.pagelen as number,
               args.page as number,
-              args.all as boolean
+              args.all as boolean,
+              args.fields as string | undefined
             );
           case "approvePullRequest":
             return await this.approvePullRequest(
               args.workspace as string,
               args.repo_slug as string,
-              args.pull_request_id as string
+              args.pull_request_id as string,
+              args.full as boolean | undefined
             );
           case "unapprovePullRequest":
             return await this.unapprovePullRequest(
@@ -2057,7 +2104,8 @@ class BitbucketServer {
             return await this.requestChangesPullRequest(
               args.workspace as string,
               args.repo_slug as string,
-              args.pull_request_id as string
+              args.pull_request_id as string,
+              args.full as boolean | undefined
             );
           case "removeChangesRequestedPullRequest":
             return await this.removeChangesRequestedPullRequest(
@@ -2070,7 +2118,8 @@ class BitbucketServer {
               args.workspace as string,
               args.repo_slug as string,
               args.pull_request_id as string,
-              args.message as string
+              args.message as string,
+              args.full as boolean | undefined
             );
           case "mergePullRequest":
             return await this.mergePullRequest(
@@ -2078,7 +2127,8 @@ class BitbucketServer {
               args.repo_slug as string,
               args.pull_request_id as string,
               args.message as string,
-              args.strategy as "merge-commit" | "squash" | "fast-forward"
+              args.strategy as "merge-commit" | "squash" | "fast-forward",
+              args.full as boolean | undefined
             );
           case "getPullRequestComments":
             return await this.getPullRequestComments(
@@ -2087,7 +2137,8 @@ class BitbucketServer {
               args.pull_request_id as string,
               args.pagelen as number,
               args.page as number,
-              args.all as boolean
+              args.all as boolean,
+              args.fields as string | undefined
             );
           case "getPullRequestDiff":
             return await this.getPullRequestDiff(
@@ -2102,7 +2153,8 @@ class BitbucketServer {
               args.pull_request_id as string,
               args.pagelen as number,
               args.page as number,
-              args.all as boolean
+              args.all as boolean,
+              args.fields as string | undefined
             );
           case "addPullRequestComment":
             return await this.addPullRequestComment(
@@ -2177,19 +2229,22 @@ class BitbucketServer {
               args.description as string,
               args.sourceBranch as string,
               args.targetBranch as string,
-              args.reviewers as string[]
+              args.reviewers as string[],
+              args.full as boolean | undefined
             );
           case "publishDraftPullRequest":
             return await this.publishDraftPullRequest(
               args.workspace as string,
               args.repo_slug as string,
-              args.pull_request_id as string
+              args.pull_request_id as string,
+              args.full as boolean | undefined
             );
           case "convertTodraft":
             return await this.convertTodraft(
               args.workspace as string,
               args.repo_slug as string,
-              args.pull_request_id as string
+              args.pull_request_id as string,
+              args.full as boolean | undefined
             );
           case "getPendingReviewPRs":
             return await this.getPendingReviewPRs(
@@ -2208,13 +2263,15 @@ class BitbucketServer {
               args.target_branch as string,
               args.trigger_type as PipelineTriggerFilter | undefined,
               args.limit as number,
-              args.sort as string
+              args.sort as string,
+              args.fields as string | undefined
             );
           case "getPipelineRun":
             return await this.getPipelineRun(
               args.workspace as string,
               args.repo_slug as string,
-              args.pipeline_uuid as string
+              args.pipeline_uuid as string,
+              args.fields as string | undefined
             );
           case "runPipeline":
             return await this.runPipeline(
@@ -2236,14 +2293,16 @@ class BitbucketServer {
               args.pipeline_uuid as string,
               args.pagelen as number,
               args.page as number,
-              args.all as boolean
+              args.all as boolean,
+              args.fields as string | undefined
             );
           case "getPipelineStep":
             return await this.getPipelineStep(
               args.workspace as string,
               args.repo_slug as string,
               args.pipeline_uuid as string,
-              args.step_uuid as string
+              args.step_uuid as string,
+              args.fields as string | undefined
             );
           case "getPipelineStepLogs":
             return await this.getPipelineStepLogs(
@@ -2317,7 +2376,8 @@ class BitbucketServer {
               args.pull_request_id as string,
               args.pagelen as number,
               args.page as number,
-              args.all as boolean
+              args.all as boolean,
+              args.fields as string | undefined
             );
           case "createPullRequestTask":
             return await this.createPullRequestTask(
@@ -2357,7 +2417,8 @@ class BitbucketServer {
               args.pull_request_id as string,
               args.pagelen as number,
               args.page as number,
-              args.all as boolean
+              args.all as boolean,
+              args.fields as string | undefined
             );
           case "getEffectiveDefaultReviewers":
             return await this.getEffectiveDefaultReviewers(
@@ -2518,7 +2579,8 @@ class BitbucketServer {
     pagelen?: number,
     page?: number,
     all?: boolean,
-    legacyLimit?: number
+    legacyLimit?: number,
+    fields?: string
   ) {
     try {
       logger.info("Getting Bitbucket pull requests", {
@@ -2543,6 +2605,7 @@ class BitbucketServer {
           all,
           params,
           description: "getPullRequests",
+          fields,
         }
       );
 
@@ -2577,7 +2640,8 @@ class BitbucketServer {
     sourceBranch: string,
     targetBranch: string,
     reviewers?: string[],
-    draft?: boolean
+    draft?: boolean,
+    full?: boolean
   ) {
     try {
       logger.info("Creating Bitbucket pull request", {
@@ -2641,7 +2705,11 @@ class BitbucketServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify(response.data, null, 2),
+            text: JSON.stringify(
+              full ? response.data : summarizeWriteResponse(response.data),
+              null,
+              2
+            ),
           },
         ],
       };
@@ -2663,7 +2731,8 @@ class BitbucketServer {
   async getPullRequest(
     workspace: string,
     repo_slug: string,
-    pull_request_id: string
+    pull_request_id: string,
+    fields?: string
   ) {
     try {
       logger.info("Getting Bitbucket pull request details", {
@@ -2673,7 +2742,8 @@ class BitbucketServer {
       });
 
       const response = await this.api.get(
-        `/repositories/${workspace}/${repo_slug}/pullrequests/${pull_request_id}`
+        `/repositories/${workspace}/${repo_slug}/pullrequests/${pull_request_id}`,
+        { params: fields ? { fields } : undefined }
       );
 
       return {
@@ -2707,7 +2777,8 @@ class BitbucketServer {
     title?: string,
     description?: string,
     reviewers?: string[],
-    destinationBranch?: string
+    destinationBranch?: string,
+    full?: boolean
   ) {
     try {
       logger.info("Updating Bitbucket pull request", {
@@ -2732,7 +2803,11 @@ class BitbucketServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify(response.data, null, 2),
+            text: JSON.stringify(
+              full ? response.data : summarizeWriteResponse(response.data),
+              null,
+              2
+            ),
           },
         ],
       };
@@ -2756,7 +2831,8 @@ class BitbucketServer {
     workspace: string,
     repo_slug: string,
     pull_request_id: string,
-    reviewers: string[]
+    reviewers: string[],
+    full?: boolean
   ) {
     try {
       logger.info("Adding reviewers to Bitbucket pull request", {
@@ -2778,7 +2854,11 @@ class BitbucketServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify(response.data, null, 2),
+            text: JSON.stringify(
+              full ? response.data : summarizeWriteResponse(response.data),
+              null,
+              2
+            ),
           },
         ],
       };
@@ -2804,7 +2884,8 @@ class BitbucketServer {
     pull_request_id: string,
     pagelen?: number,
     page?: number,
-    all?: boolean
+    all?: boolean,
+    fields?: string
   ) {
     try {
       logger.info("Getting Bitbucket pull request activity", {
@@ -2823,6 +2904,7 @@ class BitbucketServer {
           page,
           all,
           description: "getPullRequestActivity",
+          fields,
         }
       );
 
@@ -2853,7 +2935,8 @@ class BitbucketServer {
   async approvePullRequest(
     workspace: string,
     repo_slug: string,
-    pull_request_id: string
+    pull_request_id: string,
+    full?: boolean
   ) {
     try {
       logger.info("Approving Bitbucket pull request", {
@@ -2873,7 +2956,11 @@ class BitbucketServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify(response.data, null, 2),
+            text: JSON.stringify(
+              full ? response.data : summarizeWriteResponse(response.data),
+              null,
+              2
+            ),
           },
         ],
       };
@@ -2936,7 +3023,8 @@ class BitbucketServer {
   async requestChangesPullRequest(
     workspace: string,
     repo_slug: string,
-    pull_request_id: string
+    pull_request_id: string,
+    full?: boolean
   ) {
     try {
       logger.info("Requesting changes on Bitbucket pull request", {
@@ -2956,7 +3044,11 @@ class BitbucketServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify(response.data, null, 2),
+            text: JSON.stringify(
+              full ? response.data : summarizeWriteResponse(response.data),
+              null,
+              2
+            ),
           },
         ],
       };
@@ -3020,7 +3112,8 @@ class BitbucketServer {
     workspace: string,
     repo_slug: string,
     pull_request_id: string,
-    message?: string
+    message?: string,
+    full?: boolean
   ) {
     try {
       logger.info("Declining Bitbucket pull request", {
@@ -3041,7 +3134,11 @@ class BitbucketServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify(response.data, null, 2),
+            text: JSON.stringify(
+              full ? response.data : summarizeWriteResponse(response.data),
+              null,
+              2
+            ),
           },
         ],
       };
@@ -3066,7 +3163,8 @@ class BitbucketServer {
     repo_slug: string,
     pull_request_id: string,
     message?: string,
-    strategy?: "merge-commit" | "squash" | "fast-forward"
+    strategy?: "merge-commit" | "squash" | "fast-forward",
+    full?: boolean
   ) {
     try {
       logger.info("Merging Bitbucket pull request", {
@@ -3090,7 +3188,11 @@ class BitbucketServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify(response.data, null, 2),
+            text: JSON.stringify(
+              full ? response.data : summarizeWriteResponse(response.data),
+              null,
+              2
+            ),
           },
         ],
       };
@@ -3116,7 +3218,8 @@ class BitbucketServer {
     pull_request_id: string,
     pagelen?: number,
     page?: number,
-    all?: boolean
+    all?: boolean,
+    fields?: string
   ) {
     try {
       logger.info("Getting Bitbucket pull request comments", {
@@ -3135,6 +3238,7 @@ class BitbucketServer {
           page,
           all,
           description: "getPullRequestComments",
+          fields,
         }
       );
 
@@ -3224,7 +3328,8 @@ class BitbucketServer {
     pull_request_id: string,
     pagelen?: number,
     page?: number,
-    all?: boolean
+    all?: boolean,
+    fields?: string
   ) {
     try {
       logger.info("Getting Bitbucket pull request commits", {
@@ -3243,6 +3348,7 @@ class BitbucketServer {
           page,
           all,
           description: "getPullRequestCommits",
+          fields,
         }
       );
 
@@ -3777,7 +3883,8 @@ class BitbucketServer {
     description: string,
     sourceBranch: string,
     targetBranch: string,
-    reviewers?: string[]
+    reviewers?: string[],
+    full?: boolean
   ) {
     try {
       logger.info("Creating draft Bitbucket pull request", {
@@ -3797,7 +3904,8 @@ class BitbucketServer {
         sourceBranch,
         targetBranch,
         reviewers,
-        true // Set draft to true
+        true, // Set draft to true
+        full
       );
     } catch (error) {
       logger.error("Error creating draft pull request", {
@@ -3817,7 +3925,8 @@ class BitbucketServer {
   async publishDraftPullRequest(
     workspace: string,
     repo_slug: string,
-    pull_request_id: string
+    pull_request_id: string,
+    full?: boolean
   ) {
     try {
       logger.info("Publishing draft pull request", {
@@ -3838,7 +3947,11 @@ class BitbucketServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify(response.data, null, 2),
+            text: JSON.stringify(
+              full ? response.data : summarizeWriteResponse(response.data),
+              null,
+              2
+            ),
           },
         ],
       };
@@ -3861,7 +3974,8 @@ class BitbucketServer {
   async convertTodraft(
     workspace: string,
     repo_slug: string,
-    pull_request_id: string
+    pull_request_id: string,
+    full?: boolean
   ) {
     try {
       logger.info("Converting pull request to draft", {
@@ -3882,7 +3996,11 @@ class BitbucketServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify(response.data, null, 2),
+            text: JSON.stringify(
+              full ? response.data : summarizeWriteResponse(response.data),
+              null,
+              2
+            ),
           },
         ],
       };
@@ -4111,7 +4229,8 @@ class BitbucketServer {
     target_branch?: string,
     trigger_type?: PipelineTriggerFilter,
     legacyLimit?: number,
-    sort?: string
+    sort?: string,
+    fields?: string
   ) {
     try {
       logger.info("Listing pipeline runs", {
@@ -4141,6 +4260,7 @@ class BitbucketServer {
           all,
           params,
           description: "listPipelineRuns",
+          fields,
         }
       );
 
@@ -4170,7 +4290,8 @@ class BitbucketServer {
   async getPipelineRun(
     workspace: string,
     repo_slug: string,
-    pipeline_uuid: string
+    pipeline_uuid: string,
+    fields?: string
   ) {
     try {
       logger.info("Getting pipeline run details", {
@@ -4180,7 +4301,8 @@ class BitbucketServer {
       });
 
       const response = await this.api.get(
-        `/repositories/${workspace}/${repo_slug}/pipelines/${pipeline_uuid}`
+        `/repositories/${workspace}/${repo_slug}/pipelines/${pipeline_uuid}`,
+        { params: fields ? { fields } : undefined }
       );
 
       return {
@@ -4337,7 +4459,8 @@ class BitbucketServer {
     pipeline_uuid: string,
     pagelen?: number,
     page?: number,
-    all?: boolean
+    all?: boolean,
+    fields?: string
   ) {
     try {
       logger.info("Getting pipeline steps", {
@@ -4356,6 +4479,7 @@ class BitbucketServer {
           page,
           all,
           description: "getPipelineSteps",
+          fields,
         }
       );
 
@@ -4387,7 +4511,8 @@ class BitbucketServer {
     workspace: string,
     repo_slug: string,
     pipeline_uuid: string,
-    step_uuid: string
+    step_uuid: string,
+    fields?: string
   ) {
     try {
       logger.info("Getting pipeline step details", {
@@ -4398,7 +4523,8 @@ class BitbucketServer {
       });
 
       const response = await this.api.get(
-        `/repositories/${workspace}/${repo_slug}/pipelines/${pipeline_uuid}/steps/${step_uuid}`
+        `/repositories/${workspace}/${repo_slug}/pipelines/${pipeline_uuid}/steps/${step_uuid}`,
+        { params: fields ? { fields } : undefined }
       );
 
       return {
@@ -4882,7 +5008,8 @@ class BitbucketServer {
     pull_request_id: string,
     pagelen?: number,
     page?: number,
-    all?: boolean
+    all?: boolean,
+    fields?: string
   ) {
     try {
       logger.info("Getting pull request tasks", {
@@ -4901,6 +5028,7 @@ class BitbucketServer {
           page,
           all,
           description: "getPullRequestTasks",
+          fields,
         }
       );
 
@@ -5099,7 +5227,8 @@ class BitbucketServer {
     pull_request_id: string,
     pagelen?: number,
     page?: number,
-    all?: boolean
+    all?: boolean,
+    fields?: string
   ) {
     try {
       logger.info("Getting pull request statuses", {
@@ -5118,6 +5247,7 @@ class BitbucketServer {
           page,
           all,
           description: "getPullRequestStatuses",
+          fields,
         }
       );
 
