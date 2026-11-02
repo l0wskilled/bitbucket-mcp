@@ -5052,8 +5052,17 @@ class BitbucketServer {
         pull_request_id,
       });
 
+      // The /pullrequests/{id}/patch redirect answers 404 through axios, so the
+      // patch is fetched from the commit range it redirects to, as for the diff.
+      const prResponse = await this.api.get(
+        `/repositories/${workspace}/${repo_slug}/pullrequests/${pull_request_id}`,
+        { params: { fields: "source.commit.hash,destination.commit.hash" } }
+      );
+      const sourceCommit = prResponse.data.source.commit.hash;
+      const destinationCommit = prResponse.data.destination.commit.hash;
+
       const response = await this.api.get(
-        `/repositories/${workspace}/${repo_slug}/pullrequests/${pull_request_id}/patch`,
+        `/repositories/${workspace}/${repo_slug}/patch/${workspace}/${repo_slug}:${sourceCommit}%0D${destinationCommit}?from_pullrequest_id=${pull_request_id}`,
         {
           headers: { Accept: "text/plain" },
           responseType: "text",
