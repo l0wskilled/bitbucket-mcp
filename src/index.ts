@@ -13,6 +13,7 @@ import winston from "winston";
 import os from "os";
 import path from "path";
 import fs from "fs";
+import { buildPullRequestUpdate } from "./pullRequestUpdate.js";
 import { mergeReviewers, toReviewerRefs } from "./reviewers.js";
 import {
   BitbucketPaginator,
@@ -726,6 +727,11 @@ class BitbucketServer {
                 items: { type: "string" },
                 description:
                   "Replaces the reviewer list. Each entry is a user UUID in braces (e.g. '{04776764-62c7-453b-b97e-302f60395ceb}') or an Atlassian account ID",
+              },
+              destination_branch: {
+                type: "string",
+                description:
+                  "Retargets the pull request onto this branch (e.g. to stack it on another pull request's branch)",
               },
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
@@ -2012,7 +2018,8 @@ class BitbucketServer {
               args.pull_request_id as string,
               args.title as string,
               args.description as string,
-              args.reviewers as string[] | undefined
+              args.reviewers as string[] | undefined,
+              args.destination_branch as string | undefined
             );
           case "addPullRequestReviewers":
             return await this.addPullRequestReviewers(
@@ -2705,7 +2712,8 @@ class BitbucketServer {
     pull_request_id: string,
     title?: string,
     description?: string,
-    reviewers?: string[]
+    reviewers?: string[],
+    destinationBranch?: string
   ) {
     try {
       logger.info("Updating Bitbucket pull request", {
@@ -2714,11 +2722,12 @@ class BitbucketServer {
         pull_request_id,
       });
 
-      // Only include fields that are provided
-      const updateData: Record<string, any> = {};
-      if (title !== undefined) updateData.title = title;
-      if (description !== undefined) updateData.description = description;
-      if (reviewers !== undefined) updateData.reviewers = toReviewerRefs(reviewers);
+      const updateData = buildPullRequestUpdate({
+        title,
+        description,
+        reviewers,
+        destinationBranch,
+      });
 
       const response = await this.api.put(
         `/repositories/${workspace}/${repo_slug}/pullrequests/${pull_request_id}`,

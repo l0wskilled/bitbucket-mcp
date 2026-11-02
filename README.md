@@ -286,6 +286,7 @@ Updates a pull request.
 - `title` (optional): New title
 - `description` (optional): New description
 - `reviewers` (optional): Replaces the reviewer list; user UUIDs in braces or Atlassian account IDs
+- `destination_branch` (optional): Retargets the pull request onto this branch
 
 #### `addPullRequestReviewers`
 
