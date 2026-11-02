@@ -645,9 +645,10 @@ Lists pipeline runs for a repository.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - Pagination controls described in [Pagination](#pagination)
-- `status` (optional): Filter pipelines by status (`PENDING`, `IN_PROGRESS`, `SUCCESSFUL`, `FAILED`, `ERROR`, `STOPPED`)
+- `status` (optional): Filter pipelines by status. `IN_PROGRESS` matches running, queued, paused and halted pipelines, `RUNNING`, `QUEUED`, `PAUSED` and `HALTED` one stage each; further `PENDING`, `SUCCESSFUL`, `FAILED`, `ERROR`, `STOPPED`, and the raw API values `PARSING`, `BUILDING`, `PASSED`. The API filters on its own values (`SUCCESSFUL` is `PASSED`, `RUNNING` is `BUILDING`), the server maps them.
 - `target_branch` (optional): Filter pipelines by target branch
-- `trigger_type` (optional): Filter pipelines by trigger type (`manual`, `push`, `pullrequest`, `schedule`)
+- `trigger_type` (optional): Filter pipelines by trigger type (`push`, `manual`, `schedule`, `parent_step`, `pullrequest`). `pullrequest` selects the pipelines from the `pull-requests` section of `bitbucket-pipelines.yml`; Bitbucket itself reports them as triggered by a push.
+- `sort` (optional): `created_on`, `creator.uuid` or `run_creation_date`, prefix `-` for descending (e.g. `-created_on` for newest first)
 
 #### `getPipelineRun`
 

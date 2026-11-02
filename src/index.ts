@@ -16,6 +16,13 @@ import fs from "fs";
 import { buildPullRequestUpdate } from "./pullRequestUpdate.js";
 import { mergeReviewers, toReviewerRefs } from "./reviewers.js";
 import {
+  buildPipelineFilterParams,
+  PIPELINE_STATUS_FILTERS,
+  PIPELINE_TRIGGER_FILTERS,
+  PipelineStatusFilter,
+  PipelineTriggerFilter,
+} from "./pipelineFilters.js";
+import {
   BitbucketPaginator,
   BITBUCKET_ALL_ITEMS_CAP,
   BITBUCKET_DEFAULT_PAGELEN,
@@ -558,6 +565,8 @@ class BitbucketServer {
     this.api = axios.create({
       baseURL: this.config.baseUrl,
       headers,
+      // Bitbucket repeats a query param for several values (status=A&status=B).
+      paramsSerializer: { indexes: null },
       auth:
         this.config.username && this.config.password
           ? { username: this.config.username, password: this.config.password }
@@ -1410,15 +1419,9 @@ class BitbucketServer {
               limit: LEGACY_LIMIT_SCHEMA,
               status: {
                 type: "string",
-                enum: [
-                  "PENDING",
-                  "IN_PROGRESS",
-                  "SUCCESSFUL",
-                  "FAILED",
-                  "ERROR",
-                  "STOPPED",
-                ],
-                description: "Filter pipelines by status",
+                enum: [...PIPELINE_STATUS_FILTERS],
+                description:
+                  "Filter pipelines by status. IN_PROGRESS matches running, queued, paused and halted pipelines; RUNNING only the running ones. SUCCESSFUL is sent as the API value PASSED, RUNNING as BUILDING.",
               },
               target_branch: {
                 type: "string",
@@ -1426,13 +1429,14 @@ class BitbucketServer {
               },
               trigger_type: {
                 type: "string",
-                enum: ["manual", "push", "pullrequest", "schedule"],
-                description: "Filter pipelines by trigger type",
+                enum: [...PIPELINE_TRIGGER_FILTERS],
+                description:
+                  "Filter pipelines by trigger type. pullrequest selects pipelines run for a pull request (they are triggered by a push).",
               },
               sort: {
                 type: "string",
                 description:
-                  "Field to sort by. Prefix with '-' for descending order. Supported fields: created_on, creator.uuid. Example: '-created_on' for newest first.",
+                  "Field to sort by. Prefix with '-' for descending order. Supported fields: created_on, creator.uuid, run_creation_date. Example: '-created_on' for newest first.",
               },
             },
             required: ["workspace", "repo_slug"],
@@ -2200,19 +2204,9 @@ class BitbucketServer {
               args.pagelen as number,
               args.page as number,
               args.all as boolean,
-              args.status as
-                | "PENDING"
-                | "IN_PROGRESS"
-                | "SUCCESSFUL"
-                | "FAILED"
-                | "ERROR"
-                | "STOPPED",
+              args.status as PipelineStatusFilter | undefined,
               args.target_branch as string,
-              args.trigger_type as
-                | "manual"
-                | "push"
-                | "pullrequest"
-                | "schedule",
+              args.trigger_type as PipelineTriggerFilter | undefined,
               args.limit as number,
               args.sort as string
             );
@@ -4113,15 +4107,9 @@ class BitbucketServer {
     pagelen?: number,
     page?: number,
     all?: boolean,
-    status?:
-      | "PENDING"
-      | "IN_PROGRESS"
-      | "SUCCESSFUL"
-      | "FAILED"
-      | "ERROR"
-      | "STOPPED",
+    status?: PipelineStatusFilter,
     target_branch?: string,
-    trigger_type?: "manual" | "push" | "pullrequest" | "schedule",
+    trigger_type?: PipelineTriggerFilter,
     legacyLimit?: number,
     sort?: string
   ) {
@@ -4138,11 +4126,12 @@ class BitbucketServer {
         sort,
       });
 
-      const params: Record<string, any> = {};
-      if (status) params.status = status;
-      if (target_branch) params["target.branch"] = target_branch;
-      if (trigger_type) params.trigger_type = trigger_type;
-      if (sort) params.sort = sort;
+      const params = buildPipelineFilterParams({
+        status,
+        triggerType: trigger_type,
+        targetBranch: target_branch,
+        sort,
+      });
 
       const result = await this.paginator.fetchValues(
         `/repositories/${workspace}/${repo_slug}/pipelines`,
