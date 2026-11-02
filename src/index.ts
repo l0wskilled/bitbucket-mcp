@@ -13,6 +13,7 @@ import winston from "winston";
 import os from "os";
 import path from "path";
 import fs from "fs";
+import { shapeDiff } from "./diffFilter.js";
 import { buildPullRequestCreate } from "./pullRequestCreate.js";
 import { buildPullRequestUpdate } from "./pullRequestUpdate.js";
 import { mergeReviewers, toReviewerRefs } from "./reviewers.js";
@@ -157,6 +158,20 @@ const TASK_WRITE_FULL_SCHEMA = {
   type: "boolean",
   description:
     "Return the whole Bitbucket response instead of the compact summary (id, content preview, state, pending, comment id, creator, link).",
+};
+
+const DIFF_PATH_SCHEMA = {
+  type: "array",
+  items: { type: "string" },
+  description:
+    "Only these files: exact paths, or directories with a trailing slash (e.g. 'packages/neopubli-api/src/Order/'). A renamed file matches by its old or new path.",
+};
+
+const DIFF_MAX_CHARS_SCHEMA = {
+  type: "number",
+  minimum: 1,
+  description:
+    "Cut the output at a line boundary after this many characters; a closing [truncated: ...] marker names the files not fully shown.",
 };
 
 const WRITE_FULL_SCHEMA = {
@@ -1006,7 +1021,8 @@ class BitbucketServer {
         },
         {
           name: "getPullRequestDiff",
-          description: "Get diff for a pull request",
+          description:
+            "Get diff for a pull request. For a large pull request call getPullRequestDiffStat first, then fetch the files you need with path and cap the size with max_chars.",
           inputSchema: {
             type: "object",
             properties: {
@@ -1019,6 +1035,8 @@ class BitbucketServer {
                 type: "string",
                 description: "Pull request ID",
               },
+              path: DIFF_PATH_SCHEMA,
+              max_chars: DIFF_MAX_CHARS_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -1861,7 +1879,8 @@ class BitbucketServer {
         },
         {
           name: "getPullRequestPatch",
-          description: "Get patch for a pull request",
+          description:
+            "Get patch for a pull request. For a large pull request call getPullRequestDiffStat first, then fetch the files you need with path and cap the size with max_chars.",
           inputSchema: {
             type: "object",
             properties: {
@@ -1874,6 +1893,8 @@ class BitbucketServer {
                 type: "string",
                 description: "Pull request ID",
               },
+              path: DIFF_PATH_SCHEMA,
+              max_chars: DIFF_MAX_CHARS_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -2185,7 +2206,9 @@ class BitbucketServer {
             return await this.getPullRequestDiff(
               args.workspace as string,
               args.repo_slug as string,
-              args.pull_request_id as string
+              args.pull_request_id as string,
+              args.path as string[] | string | undefined,
+              args.max_chars as number | undefined
             );
           case "getPullRequestCommits":
             return await this.getPullRequestCommits(
@@ -2414,7 +2437,9 @@ class BitbucketServer {
             return await this.getPullRequestPatch(
               args.workspace as string,
               args.repo_slug as string,
-              args.pull_request_id as string
+              args.pull_request_id as string,
+              args.path as string[] | string | undefined,
+              args.max_chars as number | undefined
             );
           case "getPullRequestTasks":
             return await this.getPullRequestTasks(
@@ -3285,7 +3310,9 @@ class BitbucketServer {
   async getPullRequestDiff(
     workspace: string,
     repo_slug: string,
-    pull_request_id: string
+    pull_request_id: string,
+    path?: string[] | string,
+    max_chars?: number
   ) {
     try {
       logger.info("Getting Bitbucket pull request diff", {
@@ -3318,7 +3345,10 @@ class BitbucketServer {
         content: [
           {
             type: "text",
-            text: response.data,
+            text: shapeDiff(response.data, {
+              paths: typeof path === "string" ? [path] : path,
+              maxChars: max_chars,
+            }),
           },
         ],
       };
@@ -5011,7 +5041,9 @@ class BitbucketServer {
   async getPullRequestPatch(
     workspace: string,
     repo_slug: string,
-    pull_request_id: string
+    pull_request_id: string,
+    path?: string[] | string,
+    max_chars?: number
   ) {
     try {
       logger.info("Getting pull request patch", {
@@ -5029,7 +5061,17 @@ class BitbucketServer {
         }
       );
 
-      return { content: [{ type: "text", text: response.data }] };
+      return {
+        content: [
+          {
+            type: "text",
+            text: shapeDiff(response.data, {
+              paths: typeof path === "string" ? [path] : path,
+              maxChars: max_chars,
+            }),
+          },
+        ],
+      };
     } catch (error) {
       logger.error("Error getting pull request patch", {
         error,

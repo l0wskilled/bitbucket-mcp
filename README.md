@@ -229,6 +229,13 @@ The comment write tools return `id`, a `content` preview (whitespace collapsed, 
 
 Set `full: true` to get Bitbucket's whole response.
 
+### Large diffs
+
+`getPullRequestDiff` and `getPullRequestPatch` return the whole text by default. For a large pull request, list the files with `getPullRequestDiffStat` first, then:
+
+- `path` keeps only the given files: exact paths, or directories with a trailing slash such as `packages/neopubli-api/src/Order/`. A renamed file matches by its old or new path; a patch keeps the commit headers of the files it shows. When nothing matches, the response lists the files in the diff.
+- `max_chars` cuts the output at a line boundary and ends it with a `[truncated: ...]` marker that names the files not fully shown.
+
 ### Repository Operations
 
 #### `listRepositories`
@@ -595,6 +602,8 @@ Gets the diff for a pull request.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
+- `path` (optional): Only these files, see [Large diffs](#large-diffs)
+- `max_chars` (optional): Cut the output after this many characters, see [Large diffs](#large-diffs)
 
 #### `getPullRequestDiffStat`
 
@@ -615,6 +624,8 @@ Gets the patch for a pull request.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
+- `path` (optional): Only these files, see [Large diffs](#large-diffs)
+- `max_chars` (optional): Cut the output after this many characters, see [Large diffs](#large-diffs)
 
 ### Pull Request Task Operations
 
