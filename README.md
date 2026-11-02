@@ -223,7 +223,11 @@ Examples: `getPullRequests` with `fields: "values.id,values.title,values.author.
 
 ### Write responses
 
-The pull request write tools marked with `full` return a compact summary by default: `id`, `title`, `state`, `draft`, `source_branch`, `destination_branch`, `source_commit`, the reviewers' display names and the html `url`. `approvePullRequest` and `requestChangesPullRequest` return the participant as `user`, `role`, `approved` and `state`. Set `full: true` to get Bitbucket's whole response.
+The pull request write tools marked with `full` return a compact summary by default: `id`, `title`, `state`, `draft`, `source_branch`, `destination_branch`, `source_commit`, the reviewers' display names and the html `url`. `approvePullRequest` and `requestChangesPullRequest` return the participant as `user`, `role`, `approved` and `state`.
+
+The comment write tools return `id`, a `content` preview (whitespace collapsed, cut at about 200 characters), `inline` path and lines, `parent_id`, `resolved`, `pending`, the author's display name and the html `url`; `publishPendingComments` gives that summary per published comment. `resolveComment` returns the thread root's `comment_id`, `resolved_by` and `resolved_on`. The task write tools return `id`, the `content` preview, `state`, `pending`, `comment_id`, the creator's display name and the `url`.
+
+Set `full: true` to get Bitbucket's whole response.
 
 ### Repository Operations
 
@@ -471,6 +475,7 @@ Creates a comment on a pull request (general or inline).
 - `pull_request_id`: Pull request ID
 - `content`: Comment content in markdown format
 - `inline` (optional): Inline comment information for commenting on specific lines
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 **Inline Comment Format:**
 
@@ -504,6 +509,23 @@ addPullRequestComment(workspace, repo, pr_id, "Consider error handling here", {
 });
 ```
 
+#### `addPendingPullRequestComment`
+
+Creates a pending (draft) comment that stays invisible to others until it is published.
+
+**Parameters:** the same as `addPullRequestComment` without `pending` and `parent_id`.
+
+#### `publishPendingComments`
+
+Publishes all pending comments of the authenticated user on a pull request.
+
+**Parameters:**
+
+- `workspace`: Bitbucket workspace name
+- `repo_slug`: Repository slug
+- `pull_request_id`: Pull request ID
+- `full` (optional): Return Bitbucket's whole comment per result instead of the summary, see [Write responses](#write-responses)
+
 #### `getPullRequestComment`
 
 Gets a specific comment on a pull request.
@@ -526,6 +548,7 @@ Updates a comment on a pull request.
 - `pull_request_id`: Pull request ID
 - `comment_id`: Comment ID
 - `content`: Updated comment content
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `deletePullRequestComment`
 
@@ -548,6 +571,7 @@ Resolves a comment thread on a pull request.
 - `repo_slug`: Repository slug
 - `pull_request_id`: Pull request ID
 - `comment_id`: Comment ID
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `reopenComment`
 
@@ -616,7 +640,7 @@ Creates a task on a pull request.
 - `pull_request_id`: Pull request ID
 - `content`: Task content
 - `comment` (optional): Comment ID to associate with the task
-- `pending` (optional): Whether the task is pending
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `getPullRequestTask`
 
@@ -641,6 +665,7 @@ Updates a task on a pull request.
 - `task_id`: Task ID
 - `content` (optional): Updated task content
 - `state` (optional): Updated task state
+- `full` (optional): Return Bitbucket's whole response instead of the summary, see [Write responses](#write-responses)
 
 #### `deletePullRequestTask`
 

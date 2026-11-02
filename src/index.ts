@@ -16,7 +16,12 @@ import fs from "fs";
 import { buildPullRequestCreate } from "./pullRequestCreate.js";
 import { buildPullRequestUpdate } from "./pullRequestUpdate.js";
 import { mergeReviewers, toReviewerRefs } from "./reviewers.js";
-import { summarizeWriteResponse } from "./writeSummary.js";
+import {
+  summarizeComment,
+  summarizeCommentResolution,
+  summarizeTask,
+  summarizeWriteResponse,
+} from "./writeSummary.js";
 import { buildPullRequestListParams } from "./pullRequestQuery.js";
 import {
   buildPipelineFilterParams,
@@ -140,6 +145,18 @@ const CLOSE_SOURCE_BRANCH_SCHEMA = {
   type: "boolean",
   description:
     "Delete the source branch after the merge. Defaults to true; set false to keep it, e.g. for the base of a stacked pull request.",
+};
+
+const COMMENT_WRITE_FULL_SCHEMA = {
+  type: "boolean",
+  description:
+    "Return the whole Bitbucket response instead of the compact summary (id, content preview, inline path and lines, parent id, resolved, pending, author, link).",
+};
+
+const TASK_WRITE_FULL_SCHEMA = {
+  type: "boolean",
+  description:
+    "Return the whole Bitbucket response instead of the compact summary (id, content preview, state, pending, comment id, creator, link).",
 };
 
 const WRITE_FULL_SCHEMA = {
@@ -1080,6 +1097,7 @@ class BitbucketServer {
                 },
                 required: ["path"],
               },
+              full: COMMENT_WRITE_FULL_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id", "content"],
           },
@@ -1126,6 +1144,7 @@ class BitbucketServer {
                 },
                 required: ["path"],
               },
+              full: COMMENT_WRITE_FULL_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id", "content"],
           },
@@ -1145,6 +1164,7 @@ class BitbucketServer {
                 type: "string",
                 description: "Pull request ID",
               },
+              full: COMMENT_WRITE_FULL_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id"],
           },
@@ -1733,6 +1753,7 @@ class BitbucketServer {
                 type: "string",
                 description: "Updated comment content",
               },
+              full: COMMENT_WRITE_FULL_SCHEMA,
             },
             required: [
               "workspace",
@@ -1784,6 +1805,7 @@ class BitbucketServer {
                 description: "Pull request ID",
               },
               comment_id: { type: "string", description: "Comment ID" },
+              full: COMMENT_WRITE_FULL_SCHEMA,
             },
             required: [
               "workspace",
@@ -1896,6 +1918,7 @@ class BitbucketServer {
                 type: "number",
                 description: "Optional comment ID to attach the task",
               },
+              full: TASK_WRITE_FULL_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id", "content"],
           },
@@ -1942,6 +1965,7 @@ class BitbucketServer {
                 enum: ["UNRESOLVED", "RESOLVED"],
                 description: "Updated task state",
               },
+              full: TASK_WRITE_FULL_SCHEMA,
             },
             required: ["workspace", "repo_slug", "pull_request_id", "task_id"],
           },
@@ -2181,7 +2205,8 @@ class BitbucketServer {
               args.content as string,
               args.inline as InlineCommentInline,
               args.pending as boolean,
-              args.parent_id as number | undefined
+              args.parent_id as number | undefined,
+              args.full as boolean | undefined
             );
           case "addPendingPullRequestComment":
             return await this.addPendingPullRequestComment(
@@ -2189,13 +2214,15 @@ class BitbucketServer {
               args.repo_slug as string,
               args.pull_request_id as string,
               args.content as string,
-              args.inline as InlineCommentInline
+              args.inline as InlineCommentInline,
+              args.full as boolean | undefined
             );
           case "publishPendingComments":
             return await this.publishPendingComments(
               args.workspace as string,
               args.repo_slug as string,
-              args.pull_request_id as string
+              args.pull_request_id as string,
+              args.full as boolean | undefined
             );
           case "getRepositoryBranchingModel":
             return await this.getRepositoryBranchingModel(
@@ -2347,7 +2374,8 @@ class BitbucketServer {
               args.repo_slug as string,
               args.pull_request_id as string,
               args.comment_id as string,
-              args.content as string
+              args.content as string,
+              args.full as boolean | undefined
             );
           case "deletePullRequestComment":
             return await this.deletePullRequestComment(
@@ -2362,7 +2390,8 @@ class BitbucketServer {
               args.repo_slug as string,
               args.pull_request_id as string,
               args.comment_id as string,
-              true
+              true,
+              args.full as boolean | undefined
             );
           case "reopenComment":
             return await this.setCommentResolved(
@@ -2403,7 +2432,8 @@ class BitbucketServer {
               args.repo_slug as string,
               args.pull_request_id as string,
               args.content as string,
-              args.comment as number
+              args.comment as number,
+              args.full as boolean | undefined
             );
           case "getPullRequestTask":
             return await this.getPullRequestTask(
@@ -2419,7 +2449,8 @@ class BitbucketServer {
               args.pull_request_id as string,
               args.task_id as string,
               args.content as string | undefined,
-              args.state as ("UNRESOLVED" | "RESOLVED") | undefined
+              args.state as ("UNRESOLVED" | "RESOLVED") | undefined,
+              args.full as boolean | undefined
             );
           case "deletePullRequestTask":
             return await this.deletePullRequestTask(
@@ -3368,7 +3399,8 @@ class BitbucketServer {
     content: string,
     inline?: InlineCommentInline,
     pending?: boolean,
-    parent_id?: number
+    parent_id?: number,
+    full?: boolean
   ) {
     try {
       logger.info("Adding comment to Bitbucket pull request", {
@@ -3420,7 +3452,11 @@ class BitbucketServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify(response.data, null, 2),
+            text: JSON.stringify(
+              full ? response.data : summarizeComment(response.data),
+              null,
+              2
+            ),
           },
         ],
       };
@@ -3724,7 +3760,8 @@ class BitbucketServer {
     repo_slug: string,
     pull_request_id: string,
     content: string,
-    inline?: InlineCommentInline
+    inline?: InlineCommentInline,
+    full?: boolean
   ) {
     try {
       logger.info("Adding pending comment to Bitbucket pull request", {
@@ -3741,7 +3778,9 @@ class BitbucketServer {
         pull_request_id,
         content,
         inline,
-        true // Set pending to true for draft comment
+        true, // Set pending to true for draft comment
+        undefined,
+        full
       );
     } catch (error) {
       logger.error("Error adding pending comment to pull request", {
@@ -3762,7 +3801,8 @@ class BitbucketServer {
   async publishPendingComments(
     workspace: string,
     repo_slug: string,
-    pull_request_id: string
+    pull_request_id: string,
+    full?: boolean
   ) {
     try {
       logger.info("Publishing pending comments for Bitbucket pull request", {
@@ -3819,7 +3859,9 @@ class BitbucketServer {
           publishResults.push({
             commentId: comment.id,
             status: "published",
-            data: updateResponse.data,
+            data: full
+              ? updateResponse.data
+              : summarizeComment(updateResponse.data),
           });
         } catch (error) {
           publishResults.push({
@@ -4732,7 +4774,8 @@ class BitbucketServer {
     repo_slug: string,
     pull_request_id: string,
     comment_id: string,
-    content: string
+    content: string,
+    full?: boolean
   ) {
     try {
       logger.info("Updating pull request comment", {
@@ -4751,7 +4794,14 @@ class BitbucketServer {
 
       return {
         content: [
-          { type: "text", text: JSON.stringify(response.data, null, 2) },
+          {
+            type: "text",
+            text: JSON.stringify(
+              full ? response.data : summarizeComment(response.data),
+              null,
+              2
+            ),
+          },
         ],
       };
     } catch (error) {
@@ -4814,7 +4864,8 @@ class BitbucketServer {
     repo_slug: string,
     pull_request_id: string,
     comment_id: string,
-    resolved: boolean
+    resolved: boolean,
+    full?: boolean
   ) {
     try {
       logger.info("Setting comment resolved state", {
@@ -4874,7 +4925,13 @@ class BitbucketServer {
           ? resolved
             ? `Comment thread resolved (comment_id: ${targetCommentId}).`
             : `Comment thread reopened (comment_id: ${targetCommentId}).`
-          : JSON.stringify(response.data, null, 2);
+          : JSON.stringify(
+              full || !resolved
+                ? response.data
+                : summarizeCommentResolution(targetCommentId, response.data),
+              null,
+              2
+            );
 
       return {
         content: [
@@ -5045,7 +5102,8 @@ class BitbucketServer {
     repo_slug: string,
     pull_request_id: string,
     content: string,
-    commentId?: number
+    commentId?: number,
+    full?: boolean
   ) {
     try {
       logger.info("Creating pull request task", {
@@ -5064,7 +5122,14 @@ class BitbucketServer {
 
       return {
         content: [
-          { type: "text", text: JSON.stringify(response.data, null, 2) },
+          {
+            type: "text",
+            text: JSON.stringify(
+              full ? response.data : summarizeTask(response.data),
+              null,
+              2
+            ),
+          },
         ],
       };
     } catch (error) {
@@ -5129,7 +5194,8 @@ class BitbucketServer {
     pull_request_id: string,
     task_id: string,
     content?: string,
-    state?: "UNRESOLVED" | "RESOLVED"
+    state?: "UNRESOLVED" | "RESOLVED",
+    full?: boolean
   ) {
     try {
       logger.info("Updating pull request task", {
@@ -5150,7 +5216,14 @@ class BitbucketServer {
 
       return {
         content: [
-          { type: "text", text: JSON.stringify(response.data, null, 2) },
+          {
+            type: "text",
+            text: JSON.stringify(
+              full ? response.data : summarizeTask(response.data),
+              null,
+              2
+            ),
+          },
         ],
       };
     } catch (error) {
