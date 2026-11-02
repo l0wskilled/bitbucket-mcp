@@ -257,8 +257,18 @@ Gets pull requests for a repository.
 - `workspace`: Bitbucket workspace name
 - `repo_slug`: Repository slug
 - `state` (optional): Pull request state (`OPEN`, `MERGED`, `DECLINED`, `SUPERSEDED`)
+- `q` (optional): [Bitbucket query](https://developer.atlassian.com/cloud/bitbucket/rest/intro/) (BBQL), passed through as the `q` param. A query searches every state; a given `state` is added to it as `AND state="..."`.
 - Pagination controls described in [Pagination](#pagination)
 - `fields` (optional): Partial-response selector, see [Partial responses](#partial-responses)
+
+Query examples:
+
+- Your own non-draft pull requests: `author.uuid="{...}" AND draft=false` (with `state: "OPEN"` for the open ones)
+- Pull requests of a ticket: `source.branch.name ~ "AD-6002"`
+- Pull requests into a base branch: `destination.branch.name = "main"`
+- Pull requests a user reviews: `reviewers.uuid = "{...}"`
+- Recently changed: `updated_on > 2026-10-01T00:00:00+00:00`
+- Title search: `title ~ "export"`
 
 #### `createPullRequest`
 

@@ -16,6 +16,7 @@ import fs from "fs";
 import { buildPullRequestUpdate } from "./pullRequestUpdate.js";
 import { mergeReviewers, toReviewerRefs } from "./reviewers.js";
 import { summarizeWriteResponse } from "./writeSummary.js";
+import { buildPullRequestListParams } from "./pullRequestQuery.js";
 import {
   buildPipelineFilterParams,
   PIPELINE_STATUS_FILTERS,
@@ -661,6 +662,11 @@ class BitbucketServer {
               all: PAGINATION_ALL_SCHEMA,
               limit: LEGACY_LIMIT_SCHEMA,
               fields: LIST_FIELDS_SCHEMA,
+              q: {
+                type: "string",
+                description:
+                  'Bitbucket query (BBQL) passed through as the q param, e.g. author.uuid="{...}" AND draft=false, or source.branch.name ~ "AD-6002". A query searches every state; a given state is added to it.',
+              },
             },
             required: ["workspace", "repo_slug"],
           },
@@ -2037,7 +2043,8 @@ class BitbucketServer {
               args.page as number,
               args.all as boolean,
               args.limit as number,
-              args.fields as string | undefined
+              args.fields as string | undefined,
+              args.q as string | undefined
             );
           case "createPullRequest":
             return await this.createPullRequest(
@@ -2580,22 +2587,21 @@ class BitbucketServer {
     page?: number,
     all?: boolean,
     legacyLimit?: number,
-    fields?: string
+    fields?: string,
+    q?: string
   ) {
     try {
       logger.info("Getting Bitbucket pull requests", {
         workspace,
         repo_slug,
         state,
+        q,
         pagelen: pagelen ?? legacyLimit,
         page,
         all,
       });
 
-      const params: Record<string, any> = {};
-      if (state) {
-        params.state = state;
-      }
+      const params = buildPullRequestListParams(state, q);
 
       const result = await this.paginator.fetchValues<BitbucketPullRequest>(
         `/repositories/${workspace}/${repo_slug}/pullrequests`,
