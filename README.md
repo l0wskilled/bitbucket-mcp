@@ -713,6 +713,28 @@ Lists commit statuses for a pull request.
 - `pull_request_id`: Pull request ID
 - `fields` (optional): Partial-response selector, see [Partial responses](#partial-responses)
 
+#### `getCommitStatuses`
+
+Gets the build statuses (pipelines and other CI) of a commit. Returns `overall` (`FAILED` when any build failed or was stopped, otherwise `INPROGRESS` while one runs, `SUCCESSFUL` when all passed, `NONE` without builds) and per build `state`, `key`, `name`, `url`, `commit` and `updated_on`.
+
+**Parameters:**
+
+- `workspace`: Bitbucket workspace name
+- `repo_slug`: Repository slug
+- `commit`: Commit hash, full or abbreviated
+- `fields` (optional): Partial-response selector for the statuses (e.g. `values.state,values.description`); the statuses are then returned as Bitbucket sends them, without `overall`
+
+#### `getBranchBuildStatus`
+
+Resolves a branch to its head commit and returns that commit's build statuses, in the same form as `getCommitStatuses` plus `branch`.
+
+**Parameters:**
+
+- `workspace`: Bitbucket workspace name
+- `repo_slug`: Repository slug
+- `branch`: Branch name
+- `fields` (optional): As for `getCommitStatuses`
+
 ### Pipeline Operations
 
 #### `listPipelineRuns`

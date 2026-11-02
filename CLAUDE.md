@@ -58,6 +58,7 @@ The server implementation lives in `src/index.ts` (~4,500 lines). This includes:
   - PR tasks (TODO items)
   - PR diffs and patches
   - Pipeline operations (list, run, stop, get logs)
+  - Build statuses of a commit or a branch head
 
 **Environment Configuration**:
 - `BITBUCKET_URL`: API base URL (defaults to https://api.bitbucket.org/2.0)

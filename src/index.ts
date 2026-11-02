@@ -13,6 +13,11 @@ import winston from "winston";
 import os from "os";
 import path from "path";
 import fs from "fs";
+import {
+  CommitStatusLike,
+  overallBuildState,
+  summarizeCommitStatus,
+} from "./commitStatus.js";
 import { shapeDiff } from "./diffFilter.js";
 import { buildPullRequestCreate } from "./pullRequestCreate.js";
 import { buildPullRequestUpdate } from "./pullRequestUpdate.js";
@@ -172,6 +177,12 @@ const DIFF_MAX_CHARS_SCHEMA = {
   minimum: 1,
   description:
     "Cut the output at a line boundary after this many characters; a closing [truncated: ...] marker names the files not fully shown.",
+};
+
+const STATUS_FIELDS_SCHEMA = {
+  type: "string",
+  description:
+    "Bitbucket partial-response selector for the statuses, e.g. 'values.state,values.key,values.description'. With it the statuses are returned as Bitbucket sends them instead of the compact list.",
 };
 
 const WRITE_FULL_SCHEMA = {
@@ -2032,6 +2043,48 @@ class BitbucketServer {
           },
         },
         {
+          name: "getCommitStatuses",
+          description:
+            "Build statuses (pipelines and other CI) of a commit, with one overall state: FAILED, INPROGRESS, SUCCESSFUL or NONE.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              workspace: {
+                type: "string",
+                description: "Bitbucket workspace name",
+              },
+              repo_slug: { type: "string", description: "Repository slug" },
+              commit: {
+                type: "string",
+                description: "Commit hash, full or abbreviated",
+              },
+              fields: STATUS_FIELDS_SCHEMA,
+            },
+            required: ["workspace", "repo_slug", "commit"],
+          },
+        },
+        {
+          name: "getBranchBuildStatus",
+          description:
+            "Build statuses of a branch's head commit, with one overall state: FAILED, INPROGRESS, SUCCESSFUL or NONE.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              workspace: {
+                type: "string",
+                description: "Bitbucket workspace name",
+              },
+              repo_slug: { type: "string", description: "Repository slug" },
+              branch: {
+                type: "string",
+                description: "Branch name, e.g. 'feat/AD-6000-failed-mail-notification'",
+              },
+              fields: STATUS_FIELDS_SCHEMA,
+            },
+            required: ["workspace", "repo_slug", "branch"],
+          },
+        },
+        {
           name: "getEffectiveDefaultReviewers",
           description: "Get effective default reviewers for a repository",
           inputSchema: {
@@ -2492,6 +2545,20 @@ class BitbucketServer {
               args.pagelen as number,
               args.page as number,
               args.all as boolean,
+              args.fields as string | undefined
+            );
+          case "getCommitStatuses":
+            return await this.getCommitStatuses(
+              args.workspace as string,
+              args.repo_slug as string,
+              args.commit as string,
+              args.fields as string | undefined
+            );
+          case "getBranchBuildStatus":
+            return await this.getBranchBuildStatus(
+              args.workspace as string,
+              args.repo_slug as string,
+              args.branch as string,
               args.fields as string | undefined
             );
           case "getEffectiveDefaultReviewers":
@@ -5387,6 +5454,115 @@ class BitbucketServer {
       throw new McpError(
         ErrorCode.InternalError,
         `Failed to get pull request statuses: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  /** All build statuses of a commit: compact with an overall state, or as selected by fields. */
+  private async fetchCommitStatuses(
+    workspace: string,
+    repo_slug: string,
+    commit: string,
+    fields?: string
+  ) {
+    const result = await this.paginator.fetchValues<CommitStatusLike>(
+      `/repositories/${workspace}/${repo_slug}/commit/${encodeURIComponent(commit)}/statuses`,
+      {
+        pagelen: BITBUCKET_MAX_PAGELEN,
+        all: true,
+        description: "fetchCommitStatuses",
+        fields,
+      }
+    );
+    if (fields) return { values: result.values };
+    return {
+      overall: overallBuildState(result.values),
+      statuses: result.values.map(summarizeCommitStatus),
+    };
+  }
+
+  async getCommitStatuses(
+    workspace: string,
+    repo_slug: string,
+    commit: string,
+    fields?: string
+  ) {
+    try {
+      logger.info("Getting commit statuses", { workspace, repo_slug, commit });
+
+      const statuses = await this.fetchCommitStatuses(
+        workspace,
+        repo_slug,
+        commit,
+        fields
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ commit, ...statuses }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      logger.error("Error getting commit statuses", {
+        error,
+        workspace,
+        repo_slug,
+        commit,
+      });
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to get commit statuses: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  async getBranchBuildStatus(
+    workspace: string,
+    repo_slug: string,
+    branch: string,
+    fields?: string
+  ) {
+    try {
+      logger.info("Getting branch build status", { workspace, repo_slug, branch });
+
+      const branchResponse = await this.api.get(
+        `/repositories/${workspace}/${repo_slug}/refs/branches/${encodeURIComponent(branch)}`,
+        { params: { fields: "name,target.hash" } }
+      );
+      const commit: string = branchResponse.data.target.hash;
+
+      const statuses = await this.fetchCommitStatuses(
+        workspace,
+        repo_slug,
+        commit,
+        fields
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ branch, commit, ...statuses }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      logger.error("Error getting branch build status", {
+        error,
+        workspace,
+        repo_slug,
+        branch,
+      });
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to get branch build status: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
